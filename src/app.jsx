@@ -23,15 +23,6 @@ const assigneeOptions = [
   { label: "Mary", value: "mary" },
 ];
 
-const filterData = (data, filters) => {
-  return data.filter((item) => {
-    return Object.entries(filters).every(([field, val]) => {
-      if (val == null || val === "") return true;
-      return item[field] === val;
-    });
-  });
-};
-
 export default function App() {
   const [filters, setFilters] = useState({
     status: null,
@@ -44,13 +35,17 @@ export default function App() {
 
   useEffect(() => {
     const fetchData = async () => {
+      const params = new URLSearchParams();
+      if (filters.status) params.append("status", filters.status);
+      if (filters.color) params.append("color", filters.color);
+      if (filters.assignee) params.append("assignee", filters.assignee);
+
       try {
-        const res = await fetch("/mock-data.json");
-        const allData = await res.json();
-        const filtered = filterData(allData, filters);
-        setData(filtered);
+        const res = await fetch(`/api/items?${params.toString()}`);
+        const items = await res.json();
+        setData(items);
       } catch (err) {
-        console.error("Error loading data:", err);
+        console.error("Fetch error:", err);
       }
     };
     fetchData();

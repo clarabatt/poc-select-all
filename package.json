@@ -4,18 +4,24 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "server": "node backend/server.js",
+    "client": "vite",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node backend/server.js"
   },
   "dependencies": {
     "preact": "^10.26.4",
     "primeicons": "^7.0.0",
     "primereact": "^10.9.5",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.1",
-    "vite": "^6.3.1"
+    "vite": "^6.3.1",
+    "concurrently": "^7.6.0"
   }
 }
