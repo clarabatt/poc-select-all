@@ -30,43 +30,50 @@ export default function App() {
     assignee: null,
   });
   const [data, setData] = useState([]);
-  const [selectedItems, setSelectedItems] = useState(new Set());
-  const [pagination, setPagination] = useState({ first: 0, rows: 10 });
+  const [total, setTotal] = useState(0);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [pageInfo, setPageInfo] = useState({
+    page: 1,
+    pageSize: 10,
+  });
+
+  const load = async () => {
+    const params = new URLSearchParams();
+    if (filters.status) params.append("status", filters.status);
+    if (filters.color) params.append("color", filters.color);
+    if (filters.assignee) params.append("assignee", filters.assignee);
+    params.append("page", pageInfo.page);
+    params.append("pageSize", pageInfo.pageSize);
+
+    try {
+      const res = await fetch(`/api/items?${params.toString()}`);
+      if (!res.ok) {
+        console.error("Server error:", res.status, res.statusText);
+        return;
+      }
+      const { items, totalRecords } = await res.json();
+      setData(items);
+      setTotal(totalRecords);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      const params = new URLSearchParams();
-      if (filters.status) params.append("status", filters.status);
-      if (filters.color) params.append("color", filters.color);
-      if (filters.assignee) params.append("assignee", filters.assignee);
-
-      try {
-        const res = await fetch(`/api/items?${params.toString()}`);
-        const items = await res.json();
-        setData(items);
-      } catch (err) {
-        console.error("Fetch error:", err);
-      }
-    };
-    fetchData();
-  }, [filters]);
+    load();
+  }, [filters, pageInfo]);
 
   const onFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prev) => ({ ...prev, [name]: value }));
   };
-
   const resetFilters = () => {
     setFilters({ status: null, color: null, assignee: null });
   };
-
   const onSelectionChange = (e) => {
     setSelectedItems(e.value);
   };
-
-  const onPage = (event) => {
-    setPagination({ first: event.first, rows: event.rows });
-  };
+  const onPage = (e) => setPageInfo({ page: e.page + 1, pageSize: e.rows });
 
   return (
     <>
@@ -74,6 +81,12 @@ export default function App() {
         <div className="selection-info">
           <Button
             label={`${selectedItems.length ?? 0} selected`}
+            severity="secondary"
+            rounded
+          />
+          <Button
+            style={{ marginLeft: ".5rem" }}
+            label={`${total} items`}
             severity="secondary"
             rounded
           />
@@ -111,15 +124,15 @@ export default function App() {
         <DataTable
           value={data}
           paginator
-          first={pagination.first}
-          rows={pagination.rows}
+          first={(pageInfo.page - 1) * pageInfo.pageSize}
+          rows={pageInfo.pageSize}
           onPage={onPage}
-          totalRecords={data.length}
-          onPageChange={(e) => onPage(e, 1)}
+          totalRecords={total}
           selectionMode="multiple"
           selection={selectedItems}
           onSelectionChange={onSelectionChange}
           dataKey="name"
+          lazy
         >
           <Column selectionMode="multiple" headerStyle={{ width: "3em" }} />
           <Column field="name" header="Name" />
