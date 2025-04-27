@@ -20,3 +20,11 @@
     margin-left: 1rem;
   }
 }
+
+.selected-info {
+  display: flex;
+  justify-content: flex-start;
+  gap: 2rem;
+  align-items: center;
+  flex-wrap: wrap;
+}

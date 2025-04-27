@@ -3,6 +3,7 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
+import { Panel } from "primereact/panel";
 import "./app.css";
 
 const stateOptions = [
@@ -80,13 +81,8 @@ export default function App() {
       <div className="header">
         <div className="selection-info">
           <Button
-            label={`${selectedItems.length ?? 0} selected`}
-            severity="secondary"
-            rounded
-          />
-          <Button
             style={{ marginLeft: ".5rem" }}
-            label={`${total} items`}
+            label={`${total} items total`}
             severity="secondary"
             rounded
           />
@@ -142,6 +138,13 @@ export default function App() {
           <Column field="assignee" header="Assignee" />
         </DataTable>
       </div>
+      <Panel header={`${selectedItems.length ?? 0} selected`} toggleable>
+        <div className="selected-info">
+          {selectedItems.map((item) => (
+            <p key={item.name}>{item.name}</p>
+          ))}
+        </div>
+      </Panel>
     </>
   );
 }
