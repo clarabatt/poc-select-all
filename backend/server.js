@@ -1,12 +1,13 @@
 import express from "express";
 import path from "path";
-import { getItems } from "./repo.js";
+import { getItems, computeSelection, getItemsByIds } from "./repo.js";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.use(express.json());
 
 app.get("/api/items", async (req, res) => {
   try {
@@ -33,6 +34,22 @@ app.get("/api/items", async (req, res) => {
     });
   } catch (err) {
     console.error("GET /api/items error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/items/selection", async (req, res) => {
+  try {
+    const actions = req.body;
+    if (!Array.isArray(actions)) {
+      return res.status(400).json({ error: "Expected actions array" });
+    }
+    const selectedIds = await computeSelection(actions);
+
+    const items = await getItemsByIds(selectedIds);
+    res.json({ items });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });

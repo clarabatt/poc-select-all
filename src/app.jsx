@@ -31,6 +31,8 @@ export default function App() {
     assignee: null,
   });
   const [data, setData] = useState([]);
+  const [actions, setActions] = useState([]);
+  const [actionItems, setActionItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [selectedItems, setSelectedItems] = useState([]);
   const [pageInfo, setPageInfo] = useState({
@@ -71,10 +73,47 @@ export default function App() {
   const resetFilters = () => {
     setFilters({ status: null, color: null, assignee: null });
   };
-  const onSelectionChange = (e) => {
-    setSelectedItems(e.value);
-  };
   const onPage = (e) => setPageInfo({ page: e.page + 1, pageSize: e.rows });
+
+  const onSelectionChange = (e) => {
+    let action = "partial";
+    if (e.value.length == pageInfo.pageSize) {
+      action = "select_all";
+    } else if (e.value.length == 0) {
+      action = "deselect_all";
+    }
+
+    setSelectedItems(e.value);
+    setActions((prev) => {
+      const newActions = [...prev];
+      if (action === "partial") {
+        newActions.push({ filters, action, items: e.value });
+      } else {
+        newActions.push({ filters, action });
+      }
+      return newActions;
+    });
+  };
+
+  const reconstructSelection = async () => {
+    try {
+      const res = await fetch("/api/items/selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(actions),
+      });
+      console.log("Actions sent:", actions);
+      if (!res.ok) {
+        console.error("Server error:", res.status, res.statusText);
+        return;
+      }
+      const { items } = await res.json();
+      console.log("Reconstructed items:", items);
+      setActionItems(items);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+  };
 
   return (
     <>
@@ -141,6 +180,29 @@ export default function App() {
       <Panel header={`${selectedItems.length ?? 0} selected`} toggleable>
         <div className="selected-info">
           {selectedItems.map((item) => (
+            <p key={item.name}>{item.name}</p>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel header="Actions" toggleable>
+        <Button
+          label="Reconstruct actions"
+          onClick={reconstructSelection}
+          severity="secondary"
+          rounded
+        />
+
+        <div className="actions-info">
+          {actions.map((action, index) => (
+            <p key={index}>
+              {action.action} - {action.items?.length ?? 0} items
+            </p>
+          ))}
+        </div>
+
+        <div className="selected-info">
+          {actionItems.map((item) => (
             <p key={item.name}>{item.name}</p>
           ))}
         </div>

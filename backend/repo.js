@@ -38,7 +38,7 @@ export function getItems(filters, page = 1, pageSize = 10) {
     const whereClause = where.length ? " WHERE " + where.join(" AND ") : "";
     const countSql = `SELECT COUNT(*) as total FROM items${whereClause}`;
     const offset = (page - 1) * pageSize;
-    const dataSql = `SELECT name, description, status, color, assignee FROM items${whereClause} LIMIT ? OFFSET ?`;
+    const dataSql = `SELECT id, name, description, status, color, assignee FROM items${whereClause} LIMIT ? OFFSET ?`;
 
     db.get(countSql, params, (err, row) => {
       if (err) return reject(err);
@@ -49,4 +49,85 @@ export function getItems(filters, page = 1, pageSize = 10) {
       });
     });
   });
+}
+
+export async function getItemsByIds(ids) {
+  if (!ids.length) return [];
+  const placeholders = ids.map(() => "?").join(",");
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT id, name, description, status, color, assignee
+         FROM items
+       WHERE id IN (${placeholders})`,
+      ids,
+      (err, rows) => (err ? reject(err) : resolve(rows))
+    );
+  });
+}
+
+/**
+ * Replay a list of actions to compute the final selected IDs.
+ * @param {Array} actions
+ * @returns {Promise<number[]>} array of selected item IDs
+ */
+export async function computeSelection(actions) {
+  // helper to run a simple ID-only query
+  const queryIds = (filters) =>
+    new Promise((res, rej) => {
+      const where = [];
+      const params = [];
+      if (filters.status) {
+        where.push("status   = ?");
+        params.push(filters.status);
+      }
+      if (filters.color) {
+        where.push("color    = ?");
+        params.push(filters.color);
+      }
+      if (filters.assignee) {
+        where.push("assignee = ?");
+        params.push(filters.assignee);
+      }
+      const whereClause = where.length ? " WHERE " + where.join(" AND ") : "";
+      db.all(`SELECT id FROM items${whereClause}`, params, (err, rows) =>
+        err ? rej(err) : res(rows.map((r) => r.id))
+      );
+    });
+
+  const selected = new Set();
+
+  for (const act of actions) {
+    switch (act.action) {
+      case "select_all":
+        // add every ID matching that filter
+        {
+          const ids = await queryIds(act.filters);
+          ids.forEach((id) => selected.add(id));
+        }
+        break;
+
+      case "deselect_all":
+        // remove every ID matching that filter
+        // if filters are all null, this is a “clear everything”
+        if (
+          !act.filters.status &&
+          !act.filters.color &&
+          !act.filters.assignee
+        ) {
+          selected.clear();
+        } else {
+          const ids = await queryIds(act.filters);
+          ids.forEach((id) => selected.delete(id));
+        }
+        break;
+
+      case "partial":
+        // act.items holds the subset they specifically clicked
+        // assuming each item object has a unique id field:
+        act.items.forEach((item) => selected.add(item.id));
+        break;
+    }
+  }
+
+  return Array.from(selected);
 }
