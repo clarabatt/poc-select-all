@@ -171,6 +171,20 @@ export default function App() {
     return selectedIds.size;
   }, [globalSelect, total, selectedIds]);
 
+  const globalCheckbox = React.useMemo(() => {
+    if (globalSelect) {
+      const isFullySelected = globalSelect.deselected.size === 0;
+      return {
+        checked: isFullySelected,
+        disabled: !isFullySelected,
+      };
+    }
+    return {
+      checked: false,
+      disabled: selectedIds.size > 0,
+    };
+  }, [globalSelect, selectedIds]);
+
   return (
     <>
       <div className="header">
@@ -214,15 +228,18 @@ export default function App() {
       <div className="data-table">
         {/* VIRTUAL ALL MODE CHECKBOX */}
         <Checkbox
-          checked={!!globalSelect}
+          checked={globalCheckbox.checked}
+          disabled={globalCheckbox.disabled}
           onChange={() => {
+            // guard: ignore clicks when disabled (extra safety)
+            if (globalCheckbox.disabled) return;
+
             if (globalSelect) {
               pushAction({
                 action: "deselect_all",
                 filters: globalSelect.filters,
               });
               setGlobalSelect(null);
-              // Check filters
               setSelectedIds(new Set());
             } else {
               const snap = snapshotFilters();
