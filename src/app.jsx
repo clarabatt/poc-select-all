@@ -10,12 +10,10 @@ import "./app.css";
 
 // Constants
 const stateOptions = [
-  { label: "All", value: "all" },
   { label: "new", value: "new" },
   { label: "old", value: "old" },
 ];
 const colorOptions = [
-  { label: "All", value: "all" },
   { label: "blue", value: "blue" },
   { label: "yellow", value: "yellow" },
   { label: "red", value: "red" },
@@ -23,7 +21,6 @@ const colorOptions = [
   { label: "purple", value: "purple" },
 ];
 const assigneeOptions = [
-  { label: "All", value: "all" },
   { label: "John", value: "john" },
   { label: "Anna", value: "anna" },
   { label: "Doug", value: "doug" },
