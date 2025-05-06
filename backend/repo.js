@@ -13,11 +13,6 @@ const db = new sqlite.Database(dbPath, sqlite.OPEN_READWRITE, (err) => {
   else console.log("Connected to SQLite.");
 });
 
-/**
- * Fetch items applying optional filters
- * @param {{ status?: string, color?: string, assignee?: string }} filters
- * @returns {Promise<Array>}
- */
 export function getItems(filters, page = 1, pageSize = 10) {
   return new Promise((resolve, reject) => {
     const where = [];
@@ -69,11 +64,6 @@ export async function getItemsByIds(ids) {
   return allRows;
 }
 
-/**
- * Replay a list of actions to compute the final selected IDs.
- * @param {Array} actions
- * @returns {Promise<number[]>} array of selected item IDs
- */
 export async function computeSelection(actions) {
   const queryIds = async (filters) => {
     const where = [];
