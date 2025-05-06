@@ -4,6 +4,7 @@ import { Column } from "primereact/column";
 import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
 import { Panel } from "primereact/panel";
+import { Checkbox } from "primereact/checkbox";
 import "./app.css";
 
 const stateOptions = [
@@ -31,14 +32,16 @@ export default function App() {
     assignee: null,
   });
   const [data, setData] = useState([]);
-  const [actionsByFilter, setActionsByFilter] = useState({});
-  const [actionItems, setActionItems] = useState([]);
   const [total, setTotal] = useState(0);
-  const [selectedItems, setSelectedItems] = useState([]);
+
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [actionLog, setActionLog] = useState([]);
   const [pageInfo, setPageInfo] = useState({
     page: 1,
     pageSize: 10,
   });
+
+  const [globalSelect, setGlobalSelect] = useState(null);
 
   const load = async () => {
     const params = new URLSearchParams();
@@ -66,76 +69,112 @@ export default function App() {
     load();
   }, [filters, pageInfo]);
 
-  const onFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters((prev) => ({ ...prev, [name]: value }));
-  };
-  const resetFilters = () => {
+  /* ---------- filter helpers ---------- */
+  const snapshotFilters = () => ({ ...filters });
+
+  const onFilterChange = (e) =>
+    setFilters((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const resetFilters = () =>
     setFilters({ status: null, color: null, assignee: null });
-  };
+
+  /* ---------- page change ---------- */
   const onPage = (e) => setPageInfo({ page: e.page + 1, pageSize: e.rows });
 
   const onSelectionChange = (e) => {
-    const pageItems = data;
-    const pageIds = new Set(pageItems.map((i) => i.id));
-    const newlySel = new Set(e.value.map((i) => i.id));
+    const pageIds = new Set(data.map((r) => r.id));
+    const newCheckedIds = new Set(e.value.map((r) => r.id));
 
-    setSelectedItems((prev) => {
-      let filtered = prev.filter(
-        (i) => !pageIds.has(i.id) || newlySel.has(i.id)
-      );
+    if (globalSelect) {
+      /* --- we are in virtual-all mode --- */
+      const { deselected } = globalSelect;
 
-      pageItems.forEach((item) => {
-        if (newlySel.has(item.id) && !filtered.some((i) => i.id === item.id)) {
-          filtered.push(item);
-        }
+      /* restore any ids that were re-checked */
+      deselected.forEach((id) => {
+        if (newCheckedIds.has(id)) deselected.delete(id);
+      });
+      /* record any newly unchecked rows */
+      pageIds.forEach((id) => {
+        if (!newCheckedIds.has(id)) deselected.add(id);
       });
 
-      return filtered;
-    });
+      /* emit partial-remove / partial-add for replay */
+      const adds = [...deselected].filter((id) => newCheckedIds.has(id));
+      const removes = [...pageIds].filter((id) => !newCheckedIds.has(id));
 
-    osTrackAction(e);
-  };
+      if (adds.length) pushAction({ action: "partial_add", ids: adds });
+      if (removes.length)
+        pushAction({ action: "partial_remove", ids: removes });
 
-  const osTrackAction = (e) => {
-    let actionType = "partial";
-    if (e.value.length === pageInfo.pageSize) actionType = "select_all";
-    else if (e.value.length === 0) actionType = "deselect_all";
+      /* local UI selection set is just ids checked *on this page* */
+      setSelectedIds(newCheckedIds);
+      setGlobalSelect({ ...globalSelect, deselected: new Set(deselected) });
+    } else {
+      const pageItemIds = new Set(data.map((r) => r.id));
+      const newChecked = new Set(e.value.map((r) => r.id)); // ids now checked
 
-    const filterKey =
-      Object.entries(filters)
-        .filter(([, v]) => v != null)
-        .map(([k, v]) => `${k}=${v}`)
-        .join(";") || "all";
+      const adds = [];
+      const removes = [];
 
-    setActionsByFilter((prev) => ({
-      ...prev,
-      [filterKey]:
-        actionType === "partial"
-          ? { action: actionType, items: e.value.map((i) => i.id) }
-          : { action: actionType },
-    }));
-  };
-
-  const reconstructSelection = async () => {
-    try {
-      const res = await fetch("/api/items/selection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(actionsByFilter),
+      /* derive delta vs previous page state */
+      pageItemIds.forEach((id) => {
+        const wasChecked = selectedIds.has(id);
+        const isChecked = newChecked.has(id);
+        if (!wasChecked && isChecked) adds.push(id);
+        if (wasChecked && !isChecked) removes.push(id);
       });
-      console.log("Actions sent:", actionsByFilter);
-      if (!res.ok) {
-        console.error("Server error:", res.status, res.statusText);
-        return;
+
+      /* update local canonical set */
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        adds.forEach((id) => next.add(id));
+        removes.forEach((id) => next.delete(id));
+        return next;
+      });
+
+      /* bulk header logic */
+      if (adds.length === pageItemIds.size) {
+        // user ticked header: select *all* rows that match filter snapshot
+        pushAction({ action: "select_all", filters: snapshotFilters() });
+      } else if (removes.length === pageItemIds.size) {
+        // header untick = deselect all for this filter
+        pushAction({ action: "deselect_all", filters: snapshotFilters() });
+      } else {
+        if (adds.length) pushAction({ action: "partial_add", ids: adds });
+        if (removes.length)
+          pushAction({ action: "partial_remove", ids: removes });
       }
-      const { items } = await res.json();
-      console.log("Reconstructed items:", items);
-      setActionItems(items);
-    } catch (err) {
-      console.error("Fetch error:", err);
     }
   };
+
+  const currentPageSelection = React.useMemo(() => {
+    if (globalSelect) {
+      /* every row is selected except those explicitly removed */
+      return data.filter((r) => !globalSelect.deselected.has(r.id));
+    }
+    /* otherwise: normal page selection */
+    return data.filter((r) => selectedIds.has(r.id));
+  }, [data, globalSelect, selectedIds]);
+
+  const pushAction = (act) => setActionLog((prev) => [...prev, act]);
+
+  const reconstructSelection = async () => {
+    const res = await fetch("/api/items/selection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(actionLog),
+    });
+    const { items } = await res.json();
+    console.log("Reconstructed:", items);
+  };
+
+  const selectedCount = React.useMemo(() => {
+    if (globalSelect) {
+      /* virtual-all mode → every row minus those explicitly unticked */
+      return total - globalSelect.deselected.size;
+    }
+    /* normal mode → just count the ids you’ve stored */
+    return selectedIds.size;
+  }, [globalSelect, total, selectedIds]);
 
   return (
     <>
@@ -143,7 +182,7 @@ export default function App() {
         <div className="selection-info">
           <Button
             style={{ marginLeft: ".5rem" }}
-            label={`${total} items total`}
+            label={`${selectedCount} items selected`}
             severity="secondary"
             rounded
           />
@@ -178,6 +217,30 @@ export default function App() {
         </div>
       </div>
       <div className="data-table">
+        <Checkbox
+          checked={!!globalSelect}
+          onChange={() => {
+            if (globalSelect) {
+              /* user cleared the global select */
+              pushAction({
+                action: "deselect_all",
+                filters: globalSelect.filters,
+              });
+              setGlobalSelect(null);
+              setSelectedIds(new Set()); // wipe page-level set
+            } else {
+              /* user wants every row in the filter */
+              const snap = snapshotFilters();
+              pushAction({ action: "select_all", filters: snap });
+              setGlobalSelect({ filters: snap, deselected: new Set() });
+            }
+          }}
+        />
+        <span style={{ marginLeft: 8 }}>
+          Select all&nbsp;
+          <strong>{total}</strong>&nbsp;items that match this filter
+        </span>
+
         <DataTable
           value={data}
           paginator
@@ -186,9 +249,9 @@ export default function App() {
           onPage={onPage}
           totalRecords={total}
           selectionMode="multiple"
-          selection={selectedItems}
+          dataKey="id"
+          selection={currentPageSelection}
           onSelectionChange={onSelectionChange}
-          dataKey="name"
           lazy
         >
           <Column selectionMode="multiple" headerStyle={{ width: "3em" }} />
@@ -199,35 +262,12 @@ export default function App() {
           <Column field="assignee" header="Assignee" />
         </DataTable>
       </div>
-      <Panel header={`${selectedItems.length ?? 0} selected`} toggleable>
-        <div className="selected-info">
-          {selectedItems.map((item) => (
-            <p key={item.name}>{item.name}</p>
-          ))}
-        </div>
-      </Panel>
 
-      <Panel header="Actions" toggleable>
-        <Button
-          label="Reconstruct actions"
-          onClick={reconstructSelection}
-          severity="secondary"
-          rounded
-        />
-
-        <div className="actions-info">
-          {/* {actionsByFilter.map((action, index) => (
-            <p key={index}>
-              {action.action} - {action.items?.length ?? 0} items
-            </p>
-          ))} */}
-        </div>
-
-        <div className="selected-info">
-          {actionItems.map((item) => (
-            <p key={item.name}>{item.name}</p>
-          ))}
-        </div>
+      <Panel header={`Action log (${actionLog.length})`} toggleable>
+        <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.8rem" }}>
+          {JSON.stringify(actionLog.slice(-10), null, 2)}
+        </pre>
+        <Button label="POST to backend" onClick={reconstructSelection} />
       </Panel>
     </>
   );

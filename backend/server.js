@@ -39,13 +39,13 @@ app.get("/api/items", async (req, res) => {
 });
 
 app.post("/api/items/selection", async (req, res) => {
+  if (!Array.isArray(req.body)) {
+    return res
+      .status(400)
+      .json({ error: "Payload must be an array of actions" });
+  }
   try {
-    const actions = req.body;
-    if (!Array.isArray(actions)) {
-      return res.status(400).json({ error: "Expected actions array" });
-    }
-    const selectedIds = await computeSelection(actions);
-
+    const selectedIds = await computeSelection(req.body);
     const items = await getItemsByIds(selectedIds);
     res.json({ items });
   } catch (err) {
