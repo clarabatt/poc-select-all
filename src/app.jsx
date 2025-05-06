@@ -31,7 +31,7 @@ export default function App() {
     assignee: null,
   });
   const [data, setData] = useState([]);
-  const [actions, setActions] = useState([]);
+  const [actionsByFilter, setActionsByFilter] = useState({});
   const [actionItems, setActionItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [selectedItems, setSelectedItems] = useState([]);
@@ -76,23 +76,45 @@ export default function App() {
   const onPage = (e) => setPageInfo({ page: e.page + 1, pageSize: e.rows });
 
   const onSelectionChange = (e) => {
-    let action = "partial";
-    if (e.value.length == pageInfo.pageSize) {
-      action = "select_all";
-    } else if (e.value.length == 0) {
-      action = "deselect_all";
-    }
+    const pageItems = data;
+    const pageIds = new Set(pageItems.map((i) => i.id));
+    const newlySel = new Set(e.value.map((i) => i.id));
 
-    setSelectedItems(e.value);
-    setActions((prev) => {
-      const newActions = [...prev];
-      if (action === "partial") {
-        newActions.push({ filters, action, items: e.value });
-      } else {
-        newActions.push({ filters, action });
-      }
-      return newActions;
+    setSelectedItems((prev) => {
+      let filtered = prev.filter(
+        (i) => !pageIds.has(i.id) || newlySel.has(i.id)
+      );
+
+      pageItems.forEach((item) => {
+        if (newlySel.has(item.id) && !filtered.some((i) => i.id === item.id)) {
+          filtered.push(item);
+        }
+      });
+
+      return filtered;
     });
+
+    osTrackAction(e);
+  };
+
+  const osTrackAction = (e) => {
+    let actionType = "partial";
+    if (e.value.length === pageInfo.pageSize) actionType = "select_all";
+    else if (e.value.length === 0) actionType = "deselect_all";
+
+    const filterKey =
+      Object.entries(filters)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(";") || "all";
+
+    setActionsByFilter((prev) => ({
+      ...prev,
+      [filterKey]:
+        actionType === "partial"
+          ? { action: actionType, items: e.value.map((i) => i.id) }
+          : { action: actionType },
+    }));
   };
 
   const reconstructSelection = async () => {
@@ -100,9 +122,9 @@ export default function App() {
       const res = await fetch("/api/items/selection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(actions),
+        body: JSON.stringify(actionsByFilter),
       });
-      console.log("Actions sent:", actions);
+      console.log("Actions sent:", actionsByFilter);
       if (!res.ok) {
         console.error("Server error:", res.status, res.statusText);
         return;
@@ -194,11 +216,11 @@ export default function App() {
         />
 
         <div className="actions-info">
-          {actions.map((action, index) => (
+          {/* {actionsByFilter.map((action, index) => (
             <p key={index}>
               {action.action} - {action.items?.length ?? 0} items
             </p>
-          ))}
+          ))} */}
         </div>
 
         <div className="selected-info">
