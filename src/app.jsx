@@ -5,13 +5,17 @@ import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
 import { Panel } from "primereact/panel";
 import { Checkbox } from "primereact/checkbox";
+import { Tag } from "primereact/tag";
 import "./app.css";
 
+// Constants
 const stateOptions = [
+  { label: "All", value: "all" },
   { label: "new", value: "new" },
   { label: "old", value: "old" },
 ];
 const colorOptions = [
+  { label: "All", value: "all" },
   { label: "blue", value: "blue" },
   { label: "yellow", value: "yellow" },
   { label: "red", value: "red" },
@@ -19,11 +23,21 @@ const colorOptions = [
   { label: "purple", value: "purple" },
 ];
 const assigneeOptions = [
+  { label: "All", value: "all" },
   { label: "John", value: "john" },
   { label: "Anna", value: "anna" },
   { label: "Doug", value: "doug" },
   { label: "Mary", value: "mary" },
 ];
+
+const tagSeverity = (action) =>
+  action === "select_all"
+    ? "success"
+    : action === "deselect_all"
+    ? "danger"
+    : action === "partial_add"
+    ? "info"
+    : "warning";
 
 export default function App() {
   const [filters, setFilters] = useState({
@@ -34,15 +48,19 @@ export default function App() {
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
 
+  // Single selection
   const [selectedIds, setSelectedIds] = useState(new Set());
+  // Global selection
+  const [globalSelect, setGlobalSelect] = useState(null);
+
   const [actionLog, setActionLog] = useState([]);
+  const [reconstructed, setReconstructed] = useState([]);
   const [pageInfo, setPageInfo] = useState({
     page: 1,
     pageSize: 10,
   });
 
-  const [globalSelect, setGlobalSelect] = useState(null);
-
+  // - Load data ----------
   const load = async () => {
     const params = new URLSearchParams();
     if (filters.status) params.append("status", filters.status);
@@ -69,89 +87,66 @@ export default function App() {
     load();
   }, [filters, pageInfo]);
 
-  /* ---------- filter helpers ---------- */
+  // - Helpers ----------
   const snapshotFilters = () => ({ ...filters });
-
   const onFilterChange = (e) =>
     setFilters((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   const resetFilters = () =>
     setFilters({ status: null, color: null, assignee: null });
 
-  /* ---------- page change ---------- */
   const onPage = (e) => setPageInfo({ page: e.page + 1, pageSize: e.rows });
 
+  // - Selection ----------
   const onSelectionChange = (e) => {
     const pageIds = new Set(data.map((r) => r.id));
     const newCheckedIds = new Set(e.value.map((r) => r.id));
 
     if (globalSelect) {
-      /* --- we are in virtual-all mode --- */
+      // Virtual ALL mode
       const { deselected } = globalSelect;
-
-      /* restore any ids that were re-checked */
       deselected.forEach((id) => {
         if (newCheckedIds.has(id)) deselected.delete(id);
       });
-      /* record any newly unchecked rows */
       pageIds.forEach((id) => {
         if (!newCheckedIds.has(id)) deselected.add(id);
       });
 
-      /* emit partial-remove / partial-add for replay */
+      // Action logs
       const adds = [...deselected].filter((id) => newCheckedIds.has(id));
       const removes = [...pageIds].filter((id) => !newCheckedIds.has(id));
-
       if (adds.length) pushAction({ action: "partial_add", ids: adds });
       if (removes.length)
         pushAction({ action: "partial_remove", ids: removes });
 
-      /* local UI selection set is just ids checked *on this page* */
       setSelectedIds(newCheckedIds);
       setGlobalSelect({ ...globalSelect, deselected: new Set(deselected) });
-    } else {
-      const pageItemIds = new Set(data.map((r) => r.id));
-      const newChecked = new Set(e.value.map((r) => r.id)); // ids now checked
-
-      const adds = [];
-      const removes = [];
-
-      /* derive delta vs previous page state */
-      pageItemIds.forEach((id) => {
-        const wasChecked = selectedIds.has(id);
-        const isChecked = newChecked.has(id);
-        if (!wasChecked && isChecked) adds.push(id);
-        if (wasChecked && !isChecked) removes.push(id);
-      });
-
-      /* update local canonical set */
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        adds.forEach((id) => next.add(id));
-        removes.forEach((id) => next.delete(id));
-        return next;
-      });
-
-      /* bulk header logic */
-      if (adds.length === pageItemIds.size) {
-        // user ticked header: select *all* rows that match filter snapshot
-        pushAction({ action: "select_all", filters: snapshotFilters() });
-      } else if (removes.length === pageItemIds.size) {
-        // header untick = deselect all for this filter
-        pushAction({ action: "deselect_all", filters: snapshotFilters() });
-      } else {
-        if (adds.length) pushAction({ action: "partial_add", ids: adds });
-        if (removes.length)
-          pushAction({ action: "partial_remove", ids: removes });
-      }
+      return;
     }
+
+    // Normal mode
+    const adds = [];
+    const removes = [];
+    pageIds.forEach((id) => {
+      const wasChecked = selectedIds.has(id);
+      const isChecked = newCheckedIds.has(id);
+      if (!wasChecked && isChecked) adds.push(id);
+      if (wasChecked && !isChecked) removes.push(id);
+    });
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      adds.forEach((id) => next.add(id));
+      removes.forEach((id) => next.delete(id));
+      return next;
+    });
+    if (adds.length) pushAction({ action: "partial_add", ids: adds });
+    if (removes.length) pushAction({ action: "partial_remove", ids: removes });
   };
 
   const currentPageSelection = React.useMemo(() => {
     if (globalSelect) {
-      /* every row is selected except those explicitly removed */
+      // every row is selected except those explicitly removed
       return data.filter((r) => !globalSelect.deselected.has(r.id));
     }
-    /* otherwise: normal page selection */
     return data.filter((r) => selectedIds.has(r.id));
   }, [data, globalSelect, selectedIds]);
 
@@ -164,15 +159,15 @@ export default function App() {
       body: JSON.stringify(actionLog),
     });
     const { items } = await res.json();
-    console.log("Reconstructed:", items);
+    setReconstructed(items);
   };
 
   const selectedCount = React.useMemo(() => {
     if (globalSelect) {
-      /* virtual-all mode → every row minus those explicitly unticked */
+      // virtual-all mode → every row minus those explicitly unticked
       return total - globalSelect.deselected.size;
     }
-    /* normal mode → just count the ids you’ve stored */
+    // normal mode → just count the ids you’ve stored
     return selectedIds.size;
   }, [globalSelect, total, selectedIds]);
 
@@ -217,19 +212,19 @@ export default function App() {
         </div>
       </div>
       <div className="data-table">
+        {/* VIRTUAL ALL MODE CHECKBOX */}
         <Checkbox
           checked={!!globalSelect}
           onChange={() => {
             if (globalSelect) {
-              /* user cleared the global select */
               pushAction({
                 action: "deselect_all",
                 filters: globalSelect.filters,
               });
               setGlobalSelect(null);
-              setSelectedIds(new Set()); // wipe page-level set
+              // Check filters
+              setSelectedIds(new Set());
             } else {
-              /* user wants every row in the filter */
               const snap = snapshotFilters();
               pushAction({ action: "select_all", filters: snap });
               setGlobalSelect({ filters: snap, deselected: new Set() });
@@ -264,10 +259,52 @@ export default function App() {
       </div>
 
       <Panel header={`Action log (${actionLog.length})`} toggleable>
-        <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.8rem" }}>
-          {JSON.stringify(actionLog.slice(-10), null, 2)}
-        </pre>
-        <Button label="POST to backend" onClick={reconstructSelection} />
+        <div className="p-fluid">
+          {actionLog.slice(-10).map((act, idx) => (
+            <div
+              key={idx}
+              className="p-d-flex p-ai-center p-mb-2"
+              style={{ gap: ".5rem" }}
+            >
+              <Tag
+                value={act.action.replace("_", " ")}
+                severity={tagSeverity(act.action)}
+              />
+              <span style={{ fontFamily: "monospace", fontSize: ".75rem" }}>
+                {act.action === "select_all" || act.action === "deselect_all"
+                  ? Object.entries(act.filters)
+                      .filter(([, v]) => v != null)
+                      .map(([k, v]) => `${k}:${v}`)
+                      .join(", ") || "all"
+                  : act.ids.join(", ")}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <Button
+          icon="pi pi-server"
+          label="Send to backend"
+          onClick={reconstructSelection}
+        />
+      </Panel>
+
+      <Panel
+        header={`Reconstructed selection (${reconstructed.length})`}
+        toggleable
+      >
+        {reconstructed.length === 0 ? (
+          <small>No data yet – click “Send to backend”.</small>
+        ) : (
+          <div style={{ paddingLeft: "1rem" }}>
+            {reconstructed.map((it) => (
+              <p key={it.id} style={{ margin: 0 }}>
+                <strong>{it.name}</strong> — {it.status}, {it.color},{" "}
+                {it.assignee}
+              </p>
+            ))}
+          </div>
+        )}
       </Panel>
     </>
   );
