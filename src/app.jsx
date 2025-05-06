@@ -299,11 +299,7 @@ export default function App() {
           ))}
         </div>
 
-        <Button
-          icon="pi pi-server"
-          label="Send to backend"
-          onClick={reconstructSelection}
-        />
+        <Button label="Send to backend" onClick={reconstructSelection} />
       </Panel>
 
       <Panel
