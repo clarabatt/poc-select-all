@@ -9,6 +9,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json());
 
+const frontendPath = path.resolve(__dirname, "../dist");
+app.use(express.static(frontendPath));
+
 app.get("/api/items", async (req, res) => {
   try {
     const {
@@ -52,6 +55,11 @@ app.post("/api/items/selection", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Fallback to serve `index.html` for non-API routes
+app.get("*", (req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
 });
 
 const PORT = process.env.PORT || 3001;
