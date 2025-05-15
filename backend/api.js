@@ -14,13 +14,30 @@ app.use(express.static(frontendPath));
 
 app.get("/api/items", async (req, res) => {
   try {
-    const {
+    let {
       status = null,
       color = null,
       assignee = null,
       page = "1",
       pageSize = "10",
     } = req.query;
+
+    // Normalize to arrays if not already
+    status = status
+      ? Array.isArray(status)
+        ? status
+        : [status]
+      : [];
+    color = color
+      ? Array.isArray(color)
+        ? color
+        : [color]
+      : [];
+    assignee = assignee
+      ? Array.isArray(assignee)
+        ? assignee
+        : [assignee]
+      : [];
 
     const pageNum = parseInt(page, 10);
     const pageSizeNum = parseInt(pageSize, 10);

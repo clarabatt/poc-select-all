@@ -23,17 +23,17 @@ export function getItems(filters, page = 1, pageSize = 10) {
   return new Promise((resolve, reject) => {
     const where = [];
     const params = [];
-    if (filters.status) {
-      where.push("status = ?");
-      params.push(filters.status);
+    if (filters.status && filters.status.length) {
+      where.push(`status IN (${filters.status.map(() => "?").join(",")})`);
+      params.push(...filters.status);
     }
-    if (filters.color) {
-      where.push("color = ?");
-      params.push(filters.color);
+    if (filters.color && filters.color.length) {
+      where.push(`color IN (${filters.color.map(() => "?").join(",")})`);
+      params.push(...filters.color);
     }
-    if (filters.assignee) {
-      where.push("assignee = ?");
-      params.push(filters.assignee);
+    if (filters.assignee && filters.assignee.length) {
+      where.push(`assignee IN (${filters.assignee.map(() => "?").join(",")})`);
+      params.push(...filters.assignee);
     }
 
     const whereClause = where.length ? " WHERE " + where.join(" AND ") : "";
@@ -77,20 +77,19 @@ export async function computeSelection(actions) {
   const queryIds = async (filters) => {
     const where = [];
     const params = [];
-    if (filters.status) {
-      where.push("status   = ?");
-      params.push(filters.status);
+    if (filters.status && filters.status.length) {
+      where.push(`status IN (${filters.status.map(() => "?").join(",")})`);
+      params.push(...filters.status);
     }
-    if (filters.color) {
-      where.push("color    = ?");
-      params.push(filters.color);
+    if (filters.color && filters.color.length) {
+      where.push(`color IN (${filters.color.map(() => "?").join(",")})`);
+      params.push(...filters.color);
     }
-    if (filters.assignee) {
-      where.push("assignee = ?");
-      params.push(filters.assignee);
+    if (filters.assignee && filters.assignee.length) {
+      where.push(`assignee IN (${filters.assignee.map(() => "?").join(",")})`);
+      params.push(...filters.assignee);
     }
-    const sql = `SELECT id FROM items${where.length ? " WHERE " + where.join(" AND ") : ""
-      }`;
+    const sql = `SELECT id FROM items${where.length ? " WHERE " + where.join(" AND ") : ""}`;
     const rows = await new Promise((res, rej) =>
       db.all(sql, params, (e, r) => (e ? rej(e) : res(r)))
     );

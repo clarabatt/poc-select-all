@@ -17,19 +17,19 @@ export const assigneeOptions = [
   { label: "Mary", value: "mary" },
 ];
 
-export const defaultFilters = 
-    {
-        status: null,
-        color: null,
-        assignee: null,
-      };
+export const defaultFilters =
+{
+  status: [],
+  color: [],
+  assignee: [],
+};
 
 export const tagSeverity = (action) =>
   action === "select_all"
     ? "success"
     : action === "deselect_all"
-    ? "danger"
-    : action === "partial_add"
-    ? "info"
-    : "warning";
+      ? "danger"
+      : action === "partial_add"
+        ? "info"
+        : "warning";
 

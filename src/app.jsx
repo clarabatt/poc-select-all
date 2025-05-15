@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
-import { Dropdown } from "primereact/dropdown";
+import { MultiSelect } from "primereact/multiselect";
 import { Button } from "primereact/button";
 import { Panel } from "primereact/panel";
 import { Checkbox } from "primereact/checkbox";
@@ -31,9 +31,12 @@ export default function App() {
   // - Load data ----------
   const load = async () => {
     const params = new URLSearchParams();
-    if (filters.status) params.append("status", filters.status);
-    if (filters.color) params.append("color", filters.color);
-    if (filters.assignee) params.append("assignee", filters.assignee);
+    if (filters.status && filters.status.length)
+      filters.status.forEach((v) => params.append("status", v));
+    if (filters.color && filters.color.length)
+      filters.color.forEach((v) => params.append("color", v));
+    if (filters.assignee && filters.assignee.length)
+      filters.assignee.forEach((v) => params.append("assignee", v));
     params.append("page", pageInfo.page);
     params.append("pageSize", pageInfo.pageSize);
 
@@ -68,7 +71,10 @@ export default function App() {
   // - Helpers ----------
   const snapshotFilters = () => ({ ...filters });
   const onFilterChange = (e) =>
-    setFilters((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setFilters((prev) => ({
+      ...prev,
+      [e.target.name]: e.value,
+    }));
   const resetFilters = () =>
     setFilters({ ...defaultFilters });
 
@@ -183,26 +189,29 @@ export default function App() {
           />
         </div>
         <div className="filters">
-          <Dropdown
+          <MultiSelect
             name="status"
             value={filters.status}
             options={stateOptions}
             onChange={onFilterChange}
             placeholder="Select status"
+            display="chip"
           />
-          <Dropdown
+          <MultiSelect
             name="color"
             value={filters.color}
             options={colorOptions}
             onChange={onFilterChange}
             placeholder="Select color"
+            display="chip"
           />
-          <Dropdown
+          <MultiSelect
             name="assignee"
             value={filters.assignee}
             options={assigneeOptions}
             onChange={onFilterChange}
             placeholder="Select Responsible"
+            display="chip"
           />
           <Button
             label="Reset Filters"
