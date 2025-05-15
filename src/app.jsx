@@ -151,6 +151,10 @@ export default function App() {
     }
   }
 
+  const pushAction = (action) => {
+    setActionLog((prev) => [...prev, action]);
+  };
+
   const currentPageSelection = React.useMemo(() => {
     if (globalSelect) {
       // every row is selected except those explicitly removed
