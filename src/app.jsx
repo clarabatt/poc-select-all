@@ -65,6 +65,14 @@ export default function App() {
     load();
   }, [filters, pageInfo]);
 
+  useEffect(() => {
+    if (globalSelect) {
+      setGlobalSelect(null);
+      setSelectedIds(new Set());
+      setActionLog([]);
+    }
+  }, [filters]);
+
   // - Helpers ----------
   const snapshotFilters = () => ({ ...filters });
   const onFilterChange = (e) => {
@@ -156,23 +164,26 @@ export default function App() {
   }
 
   const pushAction = (action) => {
-    // setActionLog((prev) => [...prev, action]);
+    const filters = snapshotFilters()
+    console.log("Filters:", filters);
+
+    const actionWithFilters = {
+      ...action,
+      filters: filters,
+    };
+
     setActionLog((prev) => {
       const last = prev[prev.length - 1];
-      // If last action is same type, merge or replace
       if (last && last.action === action.action) {
-        // For partial_add/partial_remove, merge IDs
         if (action.action === "partial_add" || action.action === "partial_remove") {
           const mergedIds = Array.from(new Set([...last.ids, ...action.ids]));
-          return [...prev.slice(0, -1), { ...action, ids: mergedIds }];
+          return [...prev.slice(0, -1), { ...actionWithFilters, ids: mergedIds }];
         }
-        // For select_all/deselect_all, replace
         if (action.action === "select_all" || action.action === "deselect_all") {
-          return [...prev.slice(0, -1), action];
+          return [...prev.slice(0, -1), actionWithFilters];
         }
       }
-      // Otherwise, push new
-      return [...prev, action];
+      return [...prev, actionWithFilters];
     });
   };
 
