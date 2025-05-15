@@ -6,56 +6,27 @@ import { Button } from "primereact/button";
 import { Panel } from "primereact/panel";
 import { Checkbox } from "primereact/checkbox";
 import { Tag } from "primereact/tag";
+import { colorOptions, stateOptions, assigneeOptions, defaultFilters, tagSeverity } from "./utils.js";
 import "./app.css";
 
-// Constants
-const stateOptions = [
-  { label: "new", value: "new" },
-  { label: "old", value: "old" },
-];
-const colorOptions = [
-  { label: "blue", value: "blue" },
-  { label: "yellow", value: "yellow" },
-  { label: "red", value: "red" },
-  { label: "green", value: "green" },
-  { label: "purple", value: "purple" },
-];
-const assigneeOptions = [
-  { label: "John", value: "john" },
-  { label: "Anna", value: "anna" },
-  { label: "Doug", value: "doug" },
-  { label: "Mary", value: "mary" },
-];
-
-const tagSeverity = (action) =>
-  action === "select_all"
-    ? "success"
-    : action === "deselect_all"
-    ? "danger"
-    : action === "partial_add"
-    ? "info"
-    : "warning";
-
 export default function App() {
-  const [filters, setFilters] = useState({
-    status: null,
-    color: null,
-    assignee: null,
-  });
+  // Default state
+  const [filters, setFilters] = useState({ ...defaultFilters });
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
-
-  // Single selection
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  // Global selection
-  const [globalSelect, setGlobalSelect] = useState(null);
-
-  const [actionLog, setActionLog] = useState([]);
-  const [reconstructed, setReconstructed] = useState([]);
   const [pageInfo, setPageInfo] = useState({
     page: 1,
     pageSize: 10,
   });
+
+  // Common Selection
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  // Virtual selection
+  const [globalSelect, setGlobalSelect] = useState(null);
+
+  // Action log
+  const [actionLog, setActionLog] = useState([]);
+  const [reconstructed, setReconstructed] = useState([]);
 
   // - Load data ----------
   const load = async () => {
@@ -80,6 +51,16 @@ export default function App() {
     }
   };
 
+  const reconstructSelection = async () => {
+    const res = await fetch("/api/items/selection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(actionLog),
+    });
+    const { items } = await res.json();
+    setReconstructed(items);
+  };
+
   useEffect(() => {
     load();
   }, [filters, pageInfo]);
@@ -89,9 +70,12 @@ export default function App() {
   const onFilterChange = (e) =>
     setFilters((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   const resetFilters = () =>
-    setFilters({ status: null, color: null, assignee: null });
+    setFilters({ ...defaultFilters });
 
   const onPage = (e) => setPageInfo({ page: e.page + 1, pageSize: e.rows });
+
+  const pushAction = (act) => setActionLog((prev) => [...prev, act]);
+
 
   // - Selection ----------
   const onSelectionChange = (e) => {
@@ -139,6 +123,24 @@ export default function App() {
     if (removes.length) pushAction({ action: "partial_remove", ids: removes });
   };
 
+  const onGlobalSelect = () => {
+    // Ignore clicks when disabled
+    if (globalCheckbox.disabled) return;
+
+    if (globalSelect) {
+      pushAction({
+        action: "deselect_all",
+        filters: globalSelect.filters,
+      });
+      setGlobalSelect(null);
+      setSelectedIds(new Set());
+    } else {
+      const snap = snapshotFilters();
+      pushAction({ action: "select_all", filters: snap });
+      setGlobalSelect({ filters: snap, deselected: new Set() });
+    }
+  }
+
   const currentPageSelection = React.useMemo(() => {
     if (globalSelect) {
       // every row is selected except those explicitly removed
@@ -146,18 +148,6 @@ export default function App() {
     }
     return data.filter((r) => selectedIds.has(r.id));
   }, [data, globalSelect, selectedIds]);
-
-  const pushAction = (act) => setActionLog((prev) => [...prev, act]);
-
-  const reconstructSelection = async () => {
-    const res = await fetch("/api/items/selection", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(actionLog),
-    });
-    const { items } = await res.json();
-    setReconstructed(items);
-  };
 
   const selectedCount = React.useMemo(() => {
     if (globalSelect) {
@@ -178,7 +168,6 @@ export default function App() {
     }
     return {
       checked: false,
-      disabled: selectedIds.size > 0,
     };
   }, [globalSelect, selectedIds]);
 
@@ -227,23 +216,7 @@ export default function App() {
         <Checkbox
           checked={globalCheckbox.checked}
           disabled={globalCheckbox.disabled}
-          onChange={() => {
-            // guard: ignore clicks when disabled (extra safety)
-            if (globalCheckbox.disabled) return;
-
-            if (globalSelect) {
-              pushAction({
-                action: "deselect_all",
-                filters: globalSelect.filters,
-              });
-              setGlobalSelect(null);
-              setSelectedIds(new Set());
-            } else {
-              const snap = snapshotFilters();
-              pushAction({ action: "select_all", filters: snap });
-              setGlobalSelect({ filters: snap, deselected: new Set() });
-            }
-          }}
+          onChange={onGlobalSelect}
         />
         <span style={{ marginLeft: 8 }}>
           Select all&nbsp;
@@ -287,9 +260,9 @@ export default function App() {
               <span style={{ fontFamily: "monospace", fontSize: ".75rem" }}>
                 {act.action === "select_all" || act.action === "deselect_all"
                   ? Object.entries(act.filters)
-                      .filter(([, v]) => v != null)
-                      .map(([k, v]) => `${k}:${v}`)
-                      .join(", ") || "all"
+                    .filter(([, v]) => v != null)
+                    .map(([k, v]) => `${k}:${v}`)
+                    .join(", ") || "all"
                   : act.ids.join(", ")}
               </span>
             </div>
