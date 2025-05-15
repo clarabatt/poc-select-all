@@ -70,7 +70,30 @@ export async function getItemsByIds(ids) {
   return allRows;
 }
 
+export function clearActions(actions) {
+  const state = new Set();
+  const result = [];
+
+  for (const act of actions) {
+    if (act.action === "partial_add") {
+      act.ids.forEach(id => state.add(id));
+    } else if (act.action === "partial_remove") {
+      act.ids.forEach(id => state.delete(id));
+    }
+  }
+
+  if (state.size > 0) {
+    result.push({ action: "partial_add", ids: Array.from(state) });
+  }
+
+  return result;
+}
+
 export async function computeSelection(actions) {
+  console.log("Actions:", actions);
+  actions = clearActions(actions);
+  console.log("Removed redundant: ", actions);
+
   const queryIds = async (filters) => {
     const where = [];
     const params = [];
@@ -86,9 +109,8 @@ export async function computeSelection(actions) {
       where.push("assignee = ?");
       params.push(filters.assignee);
     }
-    const sql = `SELECT id FROM items${
-      where.length ? " WHERE " + where.join(" AND ") : ""
-    }`;
+    const sql = `SELECT id FROM items${where.length ? " WHERE " + where.join(" AND ") : ""
+      }`;
     const rows = await new Promise((res, rej) =>
       db.all(sql, params, (e, r) => (e ? rej(e) : res(r)))
     );
