@@ -163,7 +163,7 @@ export default function App() {
       const isFullySelected = globalSelect.deselected.size === 0;
       return {
         checked: isFullySelected,
-        disabled: !isFullySelected,
+        // disabled: !isFullySelected,
       };
     }
     return {
