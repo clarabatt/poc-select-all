@@ -75,12 +75,16 @@ export default function App() {
       ...prev,
       [e.target.name]: e.value,
     }));
-  const resetFilters = () =>
+
+  const resetFilters = () => {
     setFilters({ ...defaultFilters });
+    setSelectedIds(new Set());
+    setGlobalSelect(null);
+    setActionLog([]);
+    setReconstructed([]);
+  };
 
   const onPage = (e) => setPageInfo({ page: e.page + 1, pageSize: e.rows });
-
-  const pushAction = (act) => setActionLog((prev) => [...prev, act]);
 
 
   // - Selection ----------
