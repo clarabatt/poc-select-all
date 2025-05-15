@@ -31,12 +31,9 @@ export default function App() {
   // - Load data ----------
   const load = async () => {
     const params = new URLSearchParams();
-    if (filters.status && filters.status.length)
-      filters.status.forEach((v) => params.append("status", v));
-    if (filters.color && filters.color.length)
-      filters.color.forEach((v) => params.append("color", v));
-    if (filters.assignee && filters.assignee.length)
-      filters.assignee.forEach((v) => params.append("assignee", v));
+    (filters.status ?? []).forEach((v) => params.append("status", v));
+    (filters.color ?? []).forEach((v) => params.append("color", v));
+    (filters.assignee ?? []).forEach((v) => params.append("assignee", v));
     params.append("page", pageInfo.page);
     params.append("pageSize", pageInfo.pageSize);
 
@@ -70,18 +67,20 @@ export default function App() {
 
   // - Helpers ----------
   const snapshotFilters = () => ({ ...filters });
-  const onFilterChange = (e) =>
-    setFilters((prev) => ({
-      ...prev,
-      [e.target.name]: e.value,
-    }));
+  const onFilterChange = (e) => {
+
+    setFilters((prev) => {
+      return {
+        ...prev,
+        [e.target.name]: e.value,
+      }
+    });
+
+  }
 
   const resetFilters = () => {
     setFilters({ ...defaultFilters });
-    setSelectedIds(new Set());
     setGlobalSelect(null);
-    setActionLog([]);
-    setReconstructed([]);
   };
 
   const onPage = (e) => setPageInfo({ page: e.page + 1, pageSize: e.rows });
@@ -95,19 +94,21 @@ export default function App() {
     if (globalSelect) {
       // Virtual ALL mode
       const { deselected } = globalSelect;
+      const addedBack = [];
+
       deselected.forEach((id) => {
-        if (newCheckedIds.has(id)) deselected.delete(id);
-      });
-      pageIds.forEach((id) => {
-        if (!newCheckedIds.has(id)) deselected.add(id);
+        if (newCheckedIds.has(id)) {
+          addedBack.push(id);
+          deselected.delete(id);
+        }
       });
 
-      // Action logs
-      const adds = [...deselected].filter((id) => newCheckedIds.has(id));
-      const removes = [...pageIds].filter((id) => !newCheckedIds.has(id));
-      if (adds.length) pushAction({ action: "partial_add", ids: adds });
-      if (removes.length)
-        pushAction({ action: "partial_remove", ids: removes });
+      const removedFromPage = [...pageIds].filter((id) => !newCheckedIds.has(id));
+      removedFromPage.forEach((id) => deselected.add(id));
+
+      // Log actions
+      if (addedBack.length) pushAction({ action: "partial_add", ids: addedBack });
+      if (removedFromPage.length) pushAction({ action: "partial_remove", ids: removedFromPage });
 
       setSelectedIds(newCheckedIds);
       setGlobalSelect({ ...globalSelect, deselected: new Set(deselected) });
@@ -144,15 +145,35 @@ export default function App() {
       });
       setGlobalSelect(null);
       setSelectedIds(new Set());
+      setActionLog([]);
     } else {
       const snap = snapshotFilters();
+      setActionLog([]);
+      setSelectedIds(new Set());
       pushAction({ action: "select_all", filters: snap });
       setGlobalSelect({ filters: snap, deselected: new Set() });
     }
   }
 
   const pushAction = (action) => {
-    setActionLog((prev) => [...prev, action]);
+    // setActionLog((prev) => [...prev, action]);
+    setActionLog((prev) => {
+      const last = prev[prev.length - 1];
+      // If last action is same type, merge or replace
+      if (last && last.action === action.action) {
+        // For partial_add/partial_remove, merge IDs
+        if (action.action === "partial_add" || action.action === "partial_remove") {
+          const mergedIds = Array.from(new Set([...last.ids, ...action.ids]));
+          return [...prev.slice(0, -1), { ...action, ids: mergedIds }];
+        }
+        // For select_all/deselect_all, replace
+        if (action.action === "select_all" || action.action === "deselect_all") {
+          return [...prev.slice(0, -1), action];
+        }
+      }
+      // Otherwise, push new
+      return [...prev, action];
+    });
   };
 
   const currentPageSelection = React.useMemo(() => {
