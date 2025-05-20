@@ -207,15 +207,16 @@ export default function App() {
 
     // If filters are active, use virtual partial mode
     const allIds = await fetchAllMatchingIds(snap, total);
-    setSelectedIds(new Set(allIds));
-    setActionLog([]);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      allIds.forEach((id) => next.add(id));
+      return next;
+    });
     pushAction({
       action: "partial_add",
       ids: allIds,
       filters: snap,
     });
-
-    // setGlobalSelect(null); // drop virtual mode
   };
 
   const pushAction = (action) => {
