@@ -6,7 +6,13 @@ import { Button } from "primereact/button";
 import { Panel } from "primereact/panel";
 import { Checkbox } from "primereact/checkbox";
 import { Tag } from "primereact/tag";
-import { colorOptions, stateOptions, assigneeOptions, defaultFilters, tagSeverity } from "./utils.js";
+import {
+  colorOptions,
+  stateOptions,
+  assigneeOptions,
+  defaultFilters,
+  tagSeverity,
+} from "./utils.js";
 import "./app.css";
 
 export default function App() {
@@ -61,6 +67,30 @@ export default function App() {
     setReconstructed(items);
   };
 
+  async function fetchAllMatchingIds(filtersSnapshot, totalCount) {
+    const params = new URLSearchParams();
+
+    Object.entries(filtersSnapshot).forEach(([key, vals]) => {
+      const arr = Array.isArray(vals) ? vals : [vals];
+      arr.forEach((v) => {
+        if (v != null && v !== "") {
+          params.append(key, v);
+        }
+      });
+    });
+
+    params.append("page", 1);
+    params.append("pageSize", totalCount);
+
+    const res = await fetch(`/api/items?${params.toString()}`);
+    if (!res.ok) {
+      console.error("fetchAllMatchingIds error:", res.status, res.statusText);
+      return [];
+    }
+    const { items } = await res.json();
+    return items.map((i) => i.id);
+  }
+
   useEffect(() => {
     load();
   }, [filters, pageInfo]);
@@ -76,15 +106,13 @@ export default function App() {
   // - Helpers ----------
   const snapshotFilters = () => ({ ...filters });
   const onFilterChange = (e) => {
-
     setFilters((prev) => {
       return {
         ...prev,
         [e.target.name]: e.value,
-      }
+      };
     });
-
-  }
+  };
 
   const resetFilters = () => {
     setFilters({ ...defaultFilters });
@@ -92,7 +120,6 @@ export default function App() {
   };
 
   const onPage = (e) => setPageInfo({ page: e.page + 1, pageSize: e.rows });
-
 
   // - Selection ----------
   const onSelectionChange = (e) => {
@@ -111,12 +138,16 @@ export default function App() {
         }
       });
 
-      const removedFromPage = [...pageIds].filter((id) => !newCheckedIds.has(id));
+      const removedFromPage = [...pageIds].filter(
+        (id) => !newCheckedIds.has(id)
+      );
       removedFromPage.forEach((id) => deselected.add(id));
 
       // Log actions
-      if (addedBack.length) pushAction({ action: "partial_add", ids: addedBack });
-      if (removedFromPage.length) pushAction({ action: "partial_remove", ids: removedFromPage });
+      if (addedBack.length)
+        pushAction({ action: "partial_add", ids: addedBack });
+      if (removedFromPage.length)
+        pushAction({ action: "partial_remove", ids: removedFromPage });
 
       setSelectedIds(newCheckedIds);
       setGlobalSelect({ ...globalSelect, deselected: new Set(deselected) });
@@ -142,29 +173,53 @@ export default function App() {
     if (removes.length) pushAction({ action: "partial_remove", ids: removes });
   };
 
-  const onGlobalSelect = () => {
-    // Ignore clicks when disabled
-    if (globalCheckbox.disabled) return;
+  function noFiltersActive(filtersSnapshot) {
+    return Object.values(filtersSnapshot).every(
+      (vals) => Array.isArray(vals) && vals.length === 0
+    );
+  }
 
+  const onGlobalSelect = async () => {
     if (globalSelect) {
-      pushAction({
-        action: "deselect_all",
-        filters: globalSelect.filters,
-      });
+      pushAction({ action: "deselect_all", filters: globalSelect.filters });
       setGlobalSelect(null);
       setSelectedIds(new Set());
       setActionLog([]);
-    } else {
-      const snap = snapshotFilters();
+      return;
+    }
+
+    const snap = snapshotFilters();
+
+    // If no filters are active, use virtual all mode
+    if (noFiltersActive(snap)) {
       setActionLog([]);
       setSelectedIds(new Set());
-      pushAction({ action: "select_all", filters: snap });
-      setGlobalSelect({ filters: snap, deselected: new Set() });
+      pushAction({
+        action: "select_all",
+        filters: snap,
+      });
+      setGlobalSelect({
+        filters: snap,
+        deselected: new Set(),
+      });
+      return;
     }
-  }
+
+    // If filters are active, use virtual partial mode
+    const allIds = await fetchAllMatchingIds(snap, total);
+    setSelectedIds(new Set(allIds));
+    setActionLog([]);
+    pushAction({
+      action: "partial_add",
+      ids: allIds,
+      filters: snap,
+    });
+
+    // setGlobalSelect(null); // drop virtual mode
+  };
 
   const pushAction = (action) => {
-    const filters = snapshotFilters()
+    const filters = snapshotFilters();
     console.log("Filters:", filters);
 
     const actionWithFilters = {
@@ -175,11 +230,20 @@ export default function App() {
     setActionLog((prev) => {
       const last = prev[prev.length - 1];
       if (last && last.action === action.action) {
-        if (action.action === "partial_add" || action.action === "partial_remove") {
+        if (
+          action.action === "partial_add" ||
+          action.action === "partial_remove"
+        ) {
           const mergedIds = Array.from(new Set([...last.ids, ...action.ids]));
-          return [...prev.slice(0, -1), { ...actionWithFilters, ids: mergedIds }];
+          return [
+            ...prev.slice(0, -1),
+            { ...actionWithFilters, ids: mergedIds },
+          ];
         }
-        if (action.action === "select_all" || action.action === "deselect_all") {
+        if (
+          action.action === "select_all" ||
+          action.action === "deselect_all"
+        ) {
           return [...prev.slice(0, -1), actionWithFilters];
         }
       }
@@ -309,9 +373,9 @@ export default function App() {
               <span style={{ fontFamily: "monospace", fontSize: ".75rem" }}>
                 {act.action === "select_all" || act.action === "deselect_all"
                   ? Object.entries(act.filters)
-                    .filter(([, v]) => v != null)
-                    .map(([k, v]) => `${k}:${v}`)
-                    .join(", ") || "all"
+                      .filter(([, v]) => v != null)
+                      .map(([k, v]) => `${k}:${v}`)
+                      .join(", ") || "all"
                   : act.ids.join(", ")}
               </span>
             </div>
