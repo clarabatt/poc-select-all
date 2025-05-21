@@ -4,7 +4,6 @@ import { Column } from "primereact/column";
 import { MultiSelect } from "primereact/multiselect";
 import { Button } from "primereact/button";
 import { Panel } from "primereact/panel";
-import { Checkbox } from "primereact/checkbox";
 import { Tag } from "primereact/tag";
 import {
   colorOptions,
