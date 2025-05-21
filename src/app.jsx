@@ -221,7 +221,6 @@ export default function App() {
 
   const pushAction = (action) => {
     const filters = snapshotFilters();
-    console.log("Filters:", filters);
 
     const actionWithFilters = {
       ...action,
@@ -331,6 +330,7 @@ export default function App() {
           checked={globalCheckbox.checked}
           disabled={globalCheckbox.disabled}
           onChange={onGlobalSelect}
+          data-testid="global-checkbox"
         />
         <span style={{ marginLeft: 8 }}>
           Select all&nbsp;
@@ -374,9 +374,9 @@ export default function App() {
               <span style={{ fontFamily: "monospace", fontSize: ".75rem" }}>
                 {act.action === "select_all" || act.action === "deselect_all"
                   ? Object.entries(act.filters)
-                      .filter(([, v]) => v != null)
-                      .map(([k, v]) => `${k}:${v}`)
-                      .join(", ") || "all"
+                    .filter(([, v]) => v != null)
+                    .map(([k, v]) => `${k}:${v}`)
+                    .join(", ") || "all"
                   : act.ids.join(", ")}
               </span>
             </div>
