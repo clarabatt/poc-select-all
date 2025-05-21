@@ -14,6 +14,7 @@ import {
   tagSeverity,
 } from "./utils.js";
 import "./app.css";
+import { Divider } from "primereact/divider";
 
 export default function App() {
   // Default state
@@ -269,28 +270,32 @@ export default function App() {
     return selectedIds.size;
   }, [globalSelect, total, selectedIds]);
 
-  const globalCheckbox = React.useMemo(() => {
-    if (globalSelect) {
-      const isFullySelected = globalSelect.deselected.size === 0;
-      return {
-        checked: isFullySelected,
-        // disabled: !isFullySelected,
-      };
-    }
-    return {
-      checked: false,
-    };
-  }, [globalSelect, selectedIds]);
+  const clearSelection = () => {
+    setGlobalSelect(null);
+    setSelectedIds(new Set());
+    setActionLog([]);
+  };
 
   return (
     <>
       <div className="header">
-        <div className="selection-info">
+        <div className="toolbar">
+          <span className="selected-info">
+            <span className="number">{selectedCount}</span> selected
+          </span>
           <Button
-            style={{ marginLeft: ".5rem" }}
-            label={`${selectedCount} items selected`}
+            label="Select all"
+            onClick={onGlobalSelect}
             severity="secondary"
-            rounded
+            size="small"
+            className="p-mr-2"
+          />
+          <Divider layout="vertical" />
+          <Button
+            icon="pi pi-times"
+            onClick={clearSelection}
+            severity="secondary"
+            size="small"
           />
         </div>
         <div className="filters">
@@ -324,19 +329,16 @@ export default function App() {
             severity="secondary"
           />
         </div>
+        <div className="filter-info">
+          <span style={{ marginLeft: 8 }}>
+            <strong>{total}</strong>&nbsp;items that match this filter
+          </span>
+        </div>
       </div>
-      <div className="data-table">
-        {/* VIRTUAL ALL MODE CHECKBOX */}
-        <Checkbox
-          checked={globalCheckbox.checked}
-          disabled={globalCheckbox.disabled}
-          onChange={onGlobalSelect}
-        />
-        <span style={{ marginLeft: 8 }}>
-          Select all&nbsp;
-          <strong>{total}</strong>&nbsp;items that match this filter
-        </span>
 
+
+
+      <div className="data-table">
         <DataTable
           value={data}
           paginator
@@ -374,9 +376,9 @@ export default function App() {
               <span style={{ fontFamily: "monospace", fontSize: ".75rem" }}>
                 {act.action === "select_all" || act.action === "deselect_all"
                   ? Object.entries(act.filters)
-                      .filter(([, v]) => v != null)
-                      .map(([k, v]) => `${k}:${v}`)
-                      .join(", ") || "all"
+                    .filter(([, v]) => v != null)
+                    .map(([k, v]) => `${k}:${v}`)
+                    .join(", ") || "all"
                   : act.ids.join(", ")}
               </span>
             </div>
